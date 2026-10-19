@@ -3,7 +3,7 @@
 // ini_set('display_startup_errors', 1);
 // error_reporting(E_ALL);
 
-$server   = "localhost";
+$server   = "192.168.0.220";
 $username = "umum";
 $password = "RSmndb2020";
 $database = "rs_pendidikan";
