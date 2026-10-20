@@ -268,7 +268,7 @@ if ($linkOk && isset($_POST['simpan'])) {
         );
     }
 
-    header('Location: daftar_mhs.php?token=' . urlencode($token));
+    header('Location: ?token=' . urlencode($token));
     exit;
 }
 
@@ -490,11 +490,10 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
             if (!v) return 'Email wajib diisi.';
             if (v.length > 50 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Format email tidak valid.';
         },
-        
+        stt_medis: function (v) { if (!v) return 'Status medis wajib dipilih.'; },
         angkatan: function (v) { if (!v) return 'Angkatan wajib dipilih.'; }
     };
     
-    };
 
     function fieldBox(name) {
         var el = form.elements[name];
