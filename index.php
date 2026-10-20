@@ -112,8 +112,7 @@ if ($linkOk && isset($_POST['simpan'])) {
     $email     = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
     $stt_medis = (int) (isset($_POST['stt_medis']) ? $_POST['stt_medis'] : 0);
     $angkatan  = (int) (isset($_POST['angkatan']) ? $_POST['angkatan'] : 0);
-    $kelompok  = isset($_POST['kelompok']) ? upper(trim($_POST['kelompok'])) : '';
-    $gelombang = isset($_POST['gelombang']) ? $_POST['gelombang'] : '';
+
 
     // NIM
     if ($nim == '') {
@@ -204,16 +203,7 @@ if ($linkOk && isset($_POST['simpan'])) {
     }
 
     // Kelompok: huruf besar + angka (B1, A2, C3, D4) atau "-"
-    if ($kelompok == '') {
-        $errors[] = 'Kelompok wajib diisi (isi "-" jika tidak ada).';
-    } elseif (!preg_match('/^([A-Z][0-9]{1,2}|-)$/', $kelompok)) {
-        $errors[] = 'Kelompok harus huruf besar + angka, contoh: B1, A2, C3, D4. Isi "-" jika tidak ada.';
-    }
 
-    // Gelombang
-    if (!in_array($gelombang, array('1', '2', '3'), true)) {
-        $errors[] = 'Gelombang wajib dipilih.';
-    }
 
     // Cek link & duplikat NIM
     if (empty($errors)) {
@@ -248,17 +238,16 @@ if ($linkOk && isset($_POST['simpan'])) {
         $alamat_e = mysql_real_escape_string($alamat);
         $tlp_e    = mysql_real_escape_string($tlp);
         $email_e  = mysql_real_escape_string($email);
-        $kel_e    = mysql_real_escape_string($kelompok);
-        $gel_e    = mysql_real_escape_string($gelombang);
+       
         $passPlain = buatPassword(5);
         $pass      = md5($passPlain);
 
         $sql = "INSERT INTO mahasiswa (
                     nim, password_mhs, nama_mhs, tempat_lahir, tgl_lahir, jk, id_agama,
-                    asal_instansi, alamat, tlp, email, status, id_th, stt_medis, kelompok, gelombang
+                    asal_instansi, alamat, tlp, email, status, id_th, stt_medis
                 ) VALUES (
                     '$nim_e', '$pass', '$nama_e', '$tempat_e', '$tgl', '$jk', $agama,
-                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis, '$kel_e', '$gel_e'
+                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis
                 )";
 
         if (mysql_query($sql)) {
@@ -276,7 +265,6 @@ if ($linkOk && isset($_POST['simpan'])) {
             'nim' => $nim, 'nama_mhs' => $nama, 'tempat_lahir' => $tempat, 'tgl_lahir' => $tgl,
             'jk' => $jk, 'id_agama' => $agama, 'asal_instansi' => $instansi, 'alamat' => $alamat,
             'tlp' => $tlp, 'email' => $email, 'stt_medis' => $stt_medis, 'angkatan' => $angkatan,
-            'kelompok' => $kelompok, 'gelombang' => $gelombang
         );
     }
 
@@ -434,19 +422,7 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
                 </select>
                 <div class="err"></div></div>
 
-            <div class="field"><label>Kelompok <span>*</span></label>
-                <div class="hint">Silahkan isi berdasarkan kelompok masing-masing, apabila tidak ada maka di isi dengan "-".<br>
-                Contoh pengisian (B1, A2, C3, D4) harus huruf besar.</div>
-                <input type="text" name="kelompok" maxlength="3" value="<?php echo old('kelompok'); ?>">
-                <div class="err"></div></div>
-
-            <div class="field"><label>Gelombang <span>*</span></label>
-                <div class="pills">
-                    <label><input type="radio" name="gelombang" value="1" <?php echo oldRaw('gelombang')=='1' ? 'checked' : ''; ?>><span>1</span></label>
-                    <label><input type="radio" name="gelombang" value="2" <?php echo oldRaw('gelombang')=='2' ? 'checked' : ''; ?>><span>2</span></label>
-                    <label><input type="radio" name="gelombang" value="3" <?php echo oldRaw('gelombang')=='3' ? 'checked' : ''; ?>><span>3</span></label>
-                </div>
-                <div class="err"></div></div>
+           
 
             <button type="submit" class="btn" id="btnSimpan">KIRIM DATA</button>
         </form>
@@ -467,9 +443,7 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
     form.elements['nim'].addEventListener('input', function () {
         this.value = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     });
-    form.elements['kelompok'].addEventListener('input', function () {
-        this.value = this.value.replace(/\s/g, '').toUpperCase();
-    });
+
     form.elements['email'].addEventListener('input', function () {
         this.value = this.value.replace(/\s/g, '').toLowerCase();
     });
@@ -516,13 +490,10 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
             if (!v) return 'Email wajib diisi.';
             if (v.length > 50 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Format email tidak valid.';
         },
-        stt_medis: function (v) { if (!v) return 'Status medis wajib dipilih.'; },
-        angkatan: function (v) { if (!v) return 'Angkatan wajib dipilih.'; },
-        kelompok: function (v) {
-            if (!v) return 'Kelompok wajib diisi (isi "-" jika tidak ada).';
-            if (!/^([A-Z][0-9]{1,2}|-)$/.test(v)) return 'Contoh: B1, A2, C3, D4 (huruf besar), atau "-" jika tidak ada.';
-        },
-        gelombang: function (v) { if (!v) return 'Gelombang wajib dipilih.'; }
+        
+        angkatan: function (v) { if (!v) return 'Angkatan wajib dipilih.'; }
+    };
+    
     };
 
     function fieldBox(name) {
