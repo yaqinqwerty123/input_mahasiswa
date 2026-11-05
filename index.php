@@ -37,11 +37,12 @@ $token = isset($_GET['token']) ? preg_replace('/[^a-zA-Z0-9]/', '', $_GET['token
 
 // ---------- validasi token ----------
 function cekLink($token) {
+    global $con;
     if ($token == '') return array(false, 'Link tidak valid.');
-    $t = mysql_real_escape_string($token);
-    $q = mysql_query("SELECT * FROM link_input_mhs WHERE token = '$t' LIMIT 1");
-    if (!$q || mysql_num_rows($q) == 0) return array(false, 'Link tidak ditemukan.');
-    $r = mysql_fetch_assoc($q);
+    $t = mysqli_real_escape_string($con, $token);
+    $q = mysqli_query($con, "SELECT * FROM link_input_mhs WHERE token = '$t' LIMIT 1");
+    if (!$q || mysqli_num_rows($q) == 0) return array(false, 'Link tidak ditemukan.');
+    $r = mysqli_fetch_assoc($q);
     if ($r['status'] != 1) return array(false, 'Link ini sudah dinonaktifkan.');
     $today = date('Y-m-d');
     if ($today < $r['mulai'])   return array(false, 'Link belum aktif. Baru bisa dipakai mulai ' . date('d-m-Y', strtotime($r['mulai'])) . '.');
@@ -81,18 +82,20 @@ function tglIndo($datetime) {
     return $hari[(int)date('w', $ts)] . ', ' . (int)date('j', $ts) . ' ' . $bulan[(int)date('n', $ts)] . ' ' . date('Y', $ts);
 }
 function buatOpsi($sql, $colVal, $colLabel, $selected) {
+    global $con;
     $out = '';
-    $q = mysql_query($sql);
-    while ($r = mysql_fetch_assoc($q)) {
+    $q = mysqli_query($con, $sql);
+    while ($r = mysqli_fetch_assoc($q)) {
         $sel = ((string)$r[$colVal] === (string)$selected) ? ' selected' : '';
-        $out .= '<option value="' . htmlspecialchars($r[$colVal]) . '"' . $sel . '>'
-              . htmlspecialchars($r[$colLabel]) . '</option>';
+        $out .= '<option value="' . htmlspecialchars((string)$r[$colVal]) . '"' . $sel . '>'
+              . htmlspecialchars((string)$r[$colLabel]) . '</option>';
     }
     return $out;
 }
 function adaDiDb($sql) {
-    $q = mysql_query($sql);
-    return ($q && mysql_num_rows($q) > 0);
+    global $con;
+    $q = mysqli_query($con, $sql);
+    return ($q && mysqli_num_rows($q) > 0);
 }
 
 // ---------- proses submit ----------
@@ -211,16 +214,16 @@ if ($linkOk && isset($_POST['simpan'])) {
         if (!$ok2) $errors[] = 'Link sudah tidak berlaku.';
     }
     if (empty($errors)) {
-        $nim_e = mysql_real_escape_string(strtoupper($nim));
-        $qDup = mysql_query("
+        $nim_e = mysqli_real_escape_string($con, strtoupper($nim));
+        $qDup = mysqli_query($con, "
             SELECT m.nama_mhs, m.timestap, i.nama AS nama_instansi
             FROM mahasiswa m
             LEFT JOIN instansi i ON i.id_instansi = m.asal_instansi
             WHERE m.nim = '$nim_e'
             LIMIT 1
         ");
-        if ($qDup && mysql_num_rows($qDup) > 0) {
-            $dup = mysql_fetch_assoc($qDup);
+        if ($qDup && mysqli_num_rows($qDup) > 0) {
+            $dup = mysqli_fetch_assoc($qDup);
             $errors[] = 'NIM ' . strtoupper($nim) . ' sudah terdaftar.';
             $_SESSION['dm_dup'] = array(
                 'nim'      => strtoupper($nim),
@@ -233,11 +236,11 @@ if ($linkOk && isset($_POST['simpan'])) {
 
     // Simpan
     if (empty($errors)) {
-        $nama_e   = mysql_real_escape_string(upper($nama));
-        $tempat_e = mysql_real_escape_string(upper($tempat));
-        $alamat_e = mysql_real_escape_string($alamat);
-        $tlp_e    = mysql_real_escape_string($tlp);
-        $email_e  = mysql_real_escape_string($email);
+        $nama_e   = mysqli_real_escape_string($con, upper($nama));
+        $tempat_e = mysqli_real_escape_string($con, upper($tempat));
+        $alamat_e = mysqli_real_escape_string($con, $alamat);
+        $tlp_e    = mysqli_real_escape_string($con, $tlp);
+        $email_e  = mysqli_real_escape_string($con, $email);
        
         $passPlain = buatPassword(5);
         $pass      = md5($passPlain);
@@ -250,7 +253,7 @@ if ($linkOk && isset($_POST['simpan'])) {
                     '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis
                 )";
 
-        if (mysql_query($sql)) {
+        if (mysqli_query($con, $sql)) {
             // ditampilkan SEKALI saja di popup, lalu dihapus dari session
             $_SESSION['dm_sukses'] = array('nim' => strtoupper($nim), 'password' => $passPlain);
         } else {
