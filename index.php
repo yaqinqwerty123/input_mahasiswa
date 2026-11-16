@@ -4,6 +4,9 @@
 // Halaman tunggal (tanpa login) untuk mahasiswa input data,
 // hanya bisa dibuka lewat link bertoken & dalam rentang tanggal.
 // Field disamakan dengan Google Form "Data Mahasiswa Praktek".
+//
+// tipe_mhs : 1 = Mahasiswa Pendidikan, 2 = Mahasiswa Penelitian
+// Tipe 2 ditambah isian Fakultas & Prodi (tabel fakultas & prodi).
 // ==========================================================
 session_start();
 include __DIR__ . "/koneksi.php";   // koneksi.php satu folder dengan file ini
@@ -98,11 +101,16 @@ function adaDiDb($sql) {
     return ($q && mysqli_num_rows($q) > 0);
 }
 
+// Kondisi "aktif" untuk fakultas & prodi (sesuaikan kalau nilai di DB berbeda)
+$KOND_FAKULTAS = "status = 1";
+$KOND_PRODI    = "aktif = 1 AND (deletemark IS NULL OR deletemark = 0)";
+
 // ---------- proses submit ----------
 if ($linkOk && isset($_POST['simpan'])) {
 
     $errors = array();
 
+    $tipe      = (int) (isset($_POST['tipe_mhs']) ? $_POST['tipe_mhs'] : 0);
     $nim       = isset($_POST['nim']) ? trim($_POST['nim']) : '';
     $nama      = isset($_POST['nama_mhs']) ? trim(preg_replace('/\s+/', ' ', $_POST['nama_mhs'])) : '';
     $tempat    = isset($_POST['tempat_lahir']) ? trim(preg_replace('/\s+/', ' ', $_POST['tempat_lahir'])) : '';
@@ -110,12 +118,18 @@ if ($linkOk && isset($_POST['simpan'])) {
     $jk        = isset($_POST['jk']) ? $_POST['jk'] : '';
     $agama     = (int) (isset($_POST['id_agama']) ? $_POST['id_agama'] : 0);
     $instansi  = (int) (isset($_POST['asal_instansi']) ? $_POST['asal_instansi'] : 0);
+    $fakultas  = (int) (isset($_POST['id_fakultas']) ? $_POST['id_fakultas'] : 0);
+    $prodi     = (int) (isset($_POST['id_prodi']) ? $_POST['id_prodi'] : 0);
     $alamat    = isset($_POST['alamat']) ? trim($_POST['alamat']) : '';
     $tlp       = isset($_POST['tlp']) ? trim($_POST['tlp']) : '';
     $email     = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
     $stt_medis = (int) (isset($_POST['stt_medis']) ? $_POST['stt_medis'] : 0);
     $angkatan  = (int) (isset($_POST['angkatan']) ? $_POST['angkatan'] : 0);
 
+    // Tipe mahasiswa
+    if ($tipe != 1 && $tipe != 2) {
+        $errors[] = 'Tipe mahasiswa wajib dipilih.';
+    }
 
     // NIM
     if ($nim == '') {
@@ -168,6 +182,16 @@ if ($linkOk && isset($_POST['simpan'])) {
         $errors[] = 'Asal instansi / universitas wajib dipilih.';
     }
 
+    // Fakultas & Prodi (hanya untuk tipe 2 / penelitian)
+    if ($tipe == 2) {
+        if ($fakultas <= 0 || !adaDiDb("SELECT id_fak FROM fakultas WHERE id_fak = $fakultas AND $KOND_FAKULTAS")) {
+            $errors[] = 'Fakultas wajib dipilih.';
+        }
+        if ($prodi <= 0 || !adaDiDb("SELECT id_prodi FROM prodi WHERE id_prodi = $prodi AND $KOND_PRODI")) {
+            $errors[] = 'Program studi wajib dipilih.';
+        }
+    }
+
     // Alamat
     if ($alamat == '') {
         $errors[] = 'Alamat wajib diisi.';
@@ -205,9 +229,6 @@ if ($linkOk && isset($_POST['simpan'])) {
         $errors[] = 'Angkatan wajib dipilih.';
     }
 
-    // Kelompok: huruf besar + angka (B1, A2, C3, D4) atau "-"
-
-
     // Cek link & duplikat NIM
     if (empty($errors)) {
         list($ok2, ) = cekLink($token);
@@ -241,16 +262,22 @@ if ($linkOk && isset($_POST['simpan'])) {
         $alamat_e = mysqli_real_escape_string($con, $alamat);
         $tlp_e    = mysqli_real_escape_string($con, $tlp);
         $email_e  = mysqli_real_escape_string($con, $email);
-       
+
+        // tipe 1 (pendidikan): fakultas & prodi dikosongkan (NULL)
+        $fakSql   = ($tipe == 2) ? (int)$fakultas : 'NULL';
+        $prodiSql = ($tipe == 2) ? (int)$prodi    : 'NULL';
+
         $passPlain = buatPassword(5);
         $pass      = md5($passPlain);
 
         $sql = "INSERT INTO mahasiswa (
                     nim, password_mhs, nama_mhs, tempat_lahir, tgl_lahir, jk, id_agama,
-                    asal_instansi, alamat, tlp, email, status, id_th, stt_medis
+                    asal_instansi, alamat, tlp, email, status, id_th, stt_medis,
+                    tipe_mhs, id_fakultas, id_prodi
                 ) VALUES (
                     '$nim_e', '$pass', '$nama_e', '$tempat_e', '$tgl', '$jk', $agama,
-                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis
+                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis,
+                    $tipe, $fakSql, $prodiSql
                 )";
 
         if (mysqli_query($con, $sql)) {
@@ -265,8 +292,10 @@ if ($linkOk && isset($_POST['simpan'])) {
         $_SESSION['dm_errors'] = $errors;
         // simpan isian biar tidak ngetik ulang
         $_SESSION['dm_old'] = array(
+            'tipe_mhs' => $tipe,
             'nim' => $nim, 'nama_mhs' => $nama, 'tempat_lahir' => $tempat, 'tgl_lahir' => $tgl,
-            'jk' => $jk, 'id_agama' => $agama, 'asal_instansi' => $instansi, 'alamat' => $alamat,
+            'jk' => $jk, 'id_agama' => $agama, 'asal_instansi' => $instansi,
+            'id_fakultas' => $fakultas, 'id_prodi' => $prodi, 'alamat' => $alamat,
             'tlp' => $tlp, 'email' => $email, 'stt_medis' => $stt_medis, 'angkatan' => $angkatan,
         );
     }
@@ -276,16 +305,19 @@ if ($linkOk && isset($_POST['simpan'])) {
 }
 
 // ---------- data dropdown ----------
-$optAgama = $optInstansi = $optStatus = $optAngkatan = '';
+$optAgama = $optInstansi = $optStatus = $optAngkatan = $optFakultas = $optProdi = '';
 if ($linkOk) {
     $optAgama    = buatOpsi("SELECT id_agama, nama FROM agama ORDER BY id_agama ASC", 'id_agama', 'nama', oldRaw('id_agama'));
     $optInstansi = buatOpsi("SELECT id_instansi, nama FROM instansi WHERE status = 'Aktif' ORDER BY nama ASC", 'id_instansi', 'nama', oldRaw('asal_instansi'));
     $optStatus   = buatOpsi("SELECT id, nama FROM status_medis ORDER BY nama ASC", 'id', 'nama', oldRaw('stt_medis'));
     $optAngkatan = buatOpsi("SELECT id_th, th_angkatan FROM angkatan WHERE status = 1 ORDER BY th_angkatan ASC", 'id_th', 'th_angkatan', oldRaw('angkatan'));
+    $optFakultas = buatOpsi("SELECT id_fak, nama FROM fakultas WHERE $KOND_FAKULTAS ORDER BY nama ASC", 'id_fak', 'nama', oldRaw('id_fakultas'));
+    $optProdi    = buatOpsi("SELECT id_prodi, nama_prodi FROM prodi WHERE $KOND_PRODI ORDER BY nama_prodi ASC", 'id_prodi', 'nama_prodi', oldRaw('id_prodi'));
 }
 
 $tglMax = date('Y-m-d', strtotime('-15 years'));
 $tglMin = date('Y-m-d', strtotime('-70 years'));
+$oldTipe = (int) oldRaw('tipe_mhs');
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -337,6 +369,9 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
 .info p { color:#6b7280; font-size:14px; line-height:1.6; }
 .masa { text-align:center; font-size:11.5px; color:#97A3B6; margin-top:14px; }
 .swal-list { text-align:left; font-size:14px; margin:0; padding-left:18px; }
+.tipe-box { padding-bottom:15px; margin-bottom:18px; border-bottom:1.5px dashed #E3E8EF; }
+#blokPenelitian { display:none; }
+#blokPenelitian.show { display:block; }
 </style>
 </head>
 <body>
@@ -360,6 +395,14 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
 
         <form method="post" id="formDaftar" autocomplete="off" novalidate>
             <input type="hidden" name="simpan" value="1">
+
+            <div class="field tipe-box"><label>Tipe Mahasiswa <span>*</span></label>
+                <select name="tipe_mhs">
+                    <option value="">-- Silahkan pilih tipe mahasiswa --</option>
+                    <option value="1" <?php echo $oldTipe == 1 ? 'selected' : ''; ?>>Mahasiswa Pendidikan</option>
+                    <option value="2" <?php echo $oldTipe == 2 ? 'selected' : ''; ?>>Mahasiswa Penelitian</option>
+                </select>
+                <div class="err"></div></div>
 
             <div class="field"><label>NIM <span>*</span></label>
                 <input type="text" name="nim" maxlength="30" value="<?php echo old('nim'); ?>">
@@ -398,6 +441,23 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
                 </select>
                 <div class="err"></div></div>
 
+            <!-- Khusus Mahasiswa Penelitian (tipe 2) -->
+            <div id="blokPenelitian" class="<?php echo $oldTipe == 2 ? 'show' : ''; ?>">
+                <div class="field"><label>Fakultas <span>*</span></label>
+                    <select name="id_fakultas">
+                        <option value="">-- Pilih Fakultas --</option>
+                        <?php echo $optFakultas; ?>
+                    </select>
+                    <div class="err"></div></div>
+
+                <div class="field"><label>Program Studi <span>*</span></label>
+                    <select name="id_prodi">
+                        <option value="">-- Pilih Program Studi --</option>
+                        <?php echo $optProdi; ?>
+                    </select>
+                    <div class="err"></div></div>
+            </div>
+
             <div class="field"><label>Alamat <span>*</span></label>
                 <textarea name="alamat" rows="3" maxlength="500"><?php echo old('alamat'); ?></textarea>
                 <div class="err"></div></div>
@@ -424,8 +484,6 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
                     <?php echo $optAngkatan; ?>
                 </select>
                 <div class="err"></div></div>
-
-           
 
             <button type="submit" class="btn" id="btnSimpan">KIRIM DATA</button>
         </form>
@@ -455,8 +513,10 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
     var namaRe = /^[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F\s.,'\-]*$/;
 
     function val(n) { var el = form.elements[n]; return el ? String(el.value || '').trim() : ''; }
+    function isPenelitian() { return val('tipe_mhs') === '2'; }
 
     var rules = {
+        tipe_mhs: function (v) { if (!v) return 'Tipe mahasiswa wajib dipilih.'; },
         nim: function (v) {
             if (!v) return 'NIM wajib diisi.';
             if (!/^[A-Za-z0-9]{5,30}$/.test(v)) return 'NIM hanya huruf & angka, 5-30 karakter.';
@@ -479,6 +539,14 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
         jk: function (v) { if (!v) return 'Jenis kelamin wajib dipilih.'; },
         id_agama: function (v) { if (!v) return 'Agama wajib dipilih.'; },
         asal_instansi: function (v) { if (!v) return 'Asal instansi / universitas wajib dipilih.'; },
+        id_fakultas: function (v) {
+            if (!isPenelitian()) return;                      // hanya wajib untuk tipe 2
+            if (!v) return 'Fakultas wajib dipilih.';
+        },
+        id_prodi: function (v) {
+            if (!isPenelitian()) return;                      // hanya wajib untuk tipe 2
+            if (!v) return 'Program studi wajib dipilih.';
+        },
         alamat: function (v) {
             if (!v) return 'Alamat wajib diisi.';
             if (v.length < 10) return 'Alamat terlalu pendek, tulis selengkapnya (min. 10 karakter).';
@@ -496,7 +564,6 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
         stt_medis: function (v) { if (!v) return 'Status medis wajib dipilih.'; },
         angkatan: function (v) { if (!v) return 'Angkatan wajib dipilih.'; }
     };
-    
 
     function fieldBox(name) {
         var el = form.elements[name];
@@ -520,6 +587,23 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
             node.addEventListener('change', function () { cek(name); });
         });
     });
+
+    // ---------- tampil/sembunyi blok fakultas & prodi sesuai tipe ----------
+    var blok = document.getElementById('blokPenelitian');
+    function aturTipe() {
+        var show = isPenelitian();
+        blok.classList.toggle('show', show);
+        if (!show) {
+            // tipe 1: kosongkan & bersihkan pesan error
+            ['id_fakultas', 'id_prodi'].forEach(function (n) {
+                form.elements[n].value = '';
+                fieldBox(n).classList.remove('has-error');
+                fieldBox(n).querySelector('.err').textContent = '';
+            });
+        }
+    }
+    form.elements['tipe_mhs'].addEventListener('change', aturTipe);
+    aturTipe();
 
     form.addEventListener('submit', function (e) {
         var firstErr = null;
