@@ -219,9 +219,11 @@ if ($linkOk && isset($_POST['simpan'])) {
         $errors[] = 'Format email tidak valid (maks. 50 karakter).';
     }
 
-    // Status medis
-    if ($stt_medis <= 0 || !adaDiDb("SELECT id FROM status_medis WHERE id = $stt_medis")) {
-        $errors[] = 'Status medis wajib dipilih.';
+    // Status medis (hanya untuk tipe 1 / pendidikan)
+    if ($tipe == 1) {
+        if ($stt_medis <= 0 || !adaDiDb("SELECT id FROM status_medis WHERE id = $stt_medis")) {
+            $errors[] = 'Status medis wajib dipilih.';
+        }
     }
 
     // Angkatan
@@ -266,6 +268,8 @@ if ($linkOk && isset($_POST['simpan'])) {
         // tipe 1 (pendidikan): fakultas & prodi dikosongkan (NULL)
         $fakSql   = ($tipe == 2) ? (int)$fakultas : 'NULL';
         $prodiSql = ($tipe == 2) ? (int)$prodi    : 'NULL';
+        // status medis khusus tipe 1; tipe 2 dikosongkan (NULL)
+        $sttSql   = ($tipe == 1) ? (int)$stt_medis : 'NULL';
 
         $passPlain = buatPassword(5);
         $pass      = md5($passPlain);
@@ -276,7 +280,7 @@ if ($linkOk && isset($_POST['simpan'])) {
                     tipe_mhs, id_fakultas, id_prodi
                 ) VALUES (
                     '$nim_e', '$pass', '$nama_e', '$tempat_e', '$tgl', '$jk', $agama,
-                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $stt_medis,
+                    '$instansi', '$alamat_e', '$tlp_e', '$email_e', '1', $angkatan, $sttSql,
                     $tipe, $fakSql, $prodiSql
                 )";
 
@@ -372,6 +376,7 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
 .tipe-box { padding-bottom:15px; margin-bottom:18px; border-bottom:1.5px dashed #E3E8EF; }
 #blokPenelitian { display:none; }
 #blokPenelitian.show { display:block; }
+#blokPendidikan.hide { display:none; }
 </style>
 </head>
 <body>
@@ -471,12 +476,15 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
                 <input type="email" name="email" maxlength="50" value="<?php echo old('email'); ?>">
                 <div class="err"></div></div>
 
-            <div class="field"><label>Status Medis <span>*</span></label>
-                <select name="stt_medis">
-                    <option value="">-- Pilih Status Medis --</option>
-                    <?php echo $optStatus; ?>
-                </select>
-                <div class="err"></div></div>
+            <!-- Khusus Mahasiswa Pendidikan (tipe 1): disembunyikan untuk tipe 2 -->
+            <div id="blokPendidikan" class="<?php echo $oldTipe == 2 ? 'hide' : ''; ?>">
+                <div class="field"><label>Status Medis <span>*</span></label>
+                    <select name="stt_medis">
+                        <option value="">-- Pilih Status Medis --</option>
+                        <?php echo $optStatus; ?>
+                    </select>
+                    <div class="err"></div></div>
+            </div>
 
             <div class="field"><label>Angkatan <span>*</span></label>
                 <select name="angkatan">
@@ -561,7 +569,10 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
             if (!v) return 'Email wajib diisi.';
             if (v.length > 50 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Format email tidak valid.';
         },
-        stt_medis: function (v) { if (!v) return 'Status medis wajib dipilih.'; },
+        stt_medis: function (v) {
+            if (isPenelitian()) return;                       // status medis khusus tipe 1
+            if (!v) return 'Status medis wajib dipilih.';
+        },
         angkatan: function (v) { if (!v) return 'Angkatan wajib dipilih.'; }
     };
 
@@ -590,9 +601,16 @@ body { margin:0; min-height:100vh; padding:24px 16px; font-family:'Poppins','Seg
 
     // ---------- tampil/sembunyi blok fakultas & prodi sesuai tipe ----------
     var blok = document.getElementById('blokPenelitian');
+    var blokPend = document.getElementById('blokPendidikan');
     function aturTipe() {
         var show = isPenelitian();
         blok.classList.toggle('show', show);
+        blokPend.classList.toggle('hide', show);              // status medis disembunyikan utk tipe 2
+        if (show) {
+            form.elements['stt_medis'].value = '';
+            fieldBox('stt_medis').classList.remove('has-error');
+            fieldBox('stt_medis').querySelector('.err').textContent = '';
+        }
         if (!show) {
             // tipe 1: kosongkan & bersihkan pesan error
             ['id_fakultas', 'id_prodi'].forEach(function (n) {
